@@ -66,10 +66,10 @@ struct ContentView: View {
 
                         // Model info
                         VStack(spacing: 4) {
-                            Text("~3GB download required")
+                            Text("~1.5GB download required")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("Highest accuracy for ATC audio")
+                            Text("Optimized for ATC communications")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -106,13 +106,13 @@ struct ContentView: View {
 
                                 if !viewModel.hasTranscriptions && !viewModel.isRecording {
                                     VStack(spacing: 16) {
-                                        Image(systemName: "waveform")
+                                        Image(systemName: "antenna.radiowaves.left.and.right")
                                             .font(.system(size: 48))
                                             .foregroundColor(.secondary)
-                                        Text("WhisperKit Ready")
+                                        Text("ATC Transcriber Ready")
                                             .font(.headline)
                                             .foregroundColor(.secondary)
-                                        Text("Tap the microphone button to start transcribing ATC communications")
+                                        Text("Tap the microphone button to start transcribing Air Traffic Control communications")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                             .multilineTextAlignment(.center)

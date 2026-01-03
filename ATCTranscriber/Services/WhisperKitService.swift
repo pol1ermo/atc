@@ -44,8 +44,8 @@ class WhisperKitService: ObservableObject {
     private let bufferDuration: TimeInterval = 4.0
     private var lastProcessedSampleCount: Int = 0
 
-    // Large V3 for Neural Engine - first load takes 5-10 min to compile ANE model
-    private let modelName = "large-v3"
+    // Large V3 Turbo for Neural Engine - optimized for speed and quality
+    private let modelName = "large-v3-turbo"
 
     init() {
         Task {
@@ -62,9 +62,9 @@ class WhisperKitService: ObservableObject {
         for attempt in 1...2 {
             do {
                 if attempt == 1 {
-                    loadingProgress = "Loading \(modelName) (first time: 5-10 min)..."
+                    loadingProgress = "Loading ATC model (first time: 5-10 min)..."
                 } else {
-                    loadingProgress = "Downloading \(modelName)..."
+                    loadingProgress = "Downloading ATC model..."
                 }
 
                 // Use large-v3 with Neural Engine for maximum performance
@@ -82,7 +82,7 @@ class WhisperKitService: ObservableObject {
                 )
 
                 stopProgressAnimation()
-                loadingProgress = "Ready (\(modelName))"
+                loadingProgress = "ATC Ready (\(modelName))"
                 isModelLoaded = true
                 downloadProgress = 1.0
                 return // Success
@@ -239,7 +239,7 @@ class WhisperKitService: ObservableObject {
                     task: .transcribe,
                     language: "en",
                     temperature: 0.0,
-                    temperatureFallbackCount: 5,
+                    temperatureFallbackCount: 3,
                     sampleLength: 224,
                     usePrefillPrompt: true,
                     usePrefillCache: true,
@@ -249,8 +249,9 @@ class WhisperKitService: ObservableObject {
                     suppressBlank: true,
                     supressTokens: [-1],
                     compressionRatioThreshold: 2.4,
-                    logProbThreshold: -1.0,
-                    noSpeechThreshold: 0.6
+                    logProbThreshold: -0.8,
+                    firstTokenLogProbThreshold: -1.5,
+                    noSpeechThreshold: 0.5
                 )
             )
 
@@ -281,11 +282,17 @@ class WhisperKitService: ObservableObject {
         let hallucinations = [
             "thank you", "thanks for watching", "subscribe",
             "like and subscribe", "see you next time", "bye",
-            "music", "[music]", "(music)", "♪"
+            "music", "[music]", "(music)", "♪",
+            "...", "you", "the", "and"
         ]
 
+        // Filter very short text that's likely noise
+        if text.count < 3 {
+            return true
+        }
+
         for hallucination in hallucinations {
-            if lowercased.contains(hallucination) && text.count < 30 {
+            if lowercased == hallucination || (lowercased.contains(hallucination) && text.count < 20) {
                 return true
             }
         }
