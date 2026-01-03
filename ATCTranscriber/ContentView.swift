@@ -35,10 +35,10 @@ struct ContentView: View {
                             .foregroundColor(.blue)
 
                         VStack(spacing: 8) {
-                            Text("Whisper Large-v3")
+                            Text("WhisperKit")
                                 .font(.title2)
                                 .fontWeight(.semibold)
-                            Text("Most Accurate Model")
+                            Text("Neural Engine")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -66,10 +66,10 @@ struct ContentView: View {
 
                         // Model info
                         VStack(spacing: 4) {
-                            Text("~1.5GB download required")
+                            Text("~3GB download required")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("Best-in-class accuracy for ATC audio")
+                            Text("Highest accuracy for ATC audio")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -109,10 +109,10 @@ struct ContentView: View {
                                         Image(systemName: "waveform")
                                             .font(.system(size: 48))
                                             .foregroundColor(.secondary)
-                                        Text("Whisper Large-v3 Ready")
+                                        Text("WhisperKit Ready")
                                             .font(.headline)
                                             .foregroundColor(.secondary)
-                                        Text("Tap the microphone button to start transcribing ATC communications with maximum accuracy")
+                                        Text("Tap the microphone button to start transcribing ATC communications")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                             .multilineTextAlignment(.center)
@@ -230,7 +230,7 @@ struct ContentView: View {
         } else if viewModel.isRecording {
             return "Recording..."
         } else {
-            return "Ready (large-v3)"
+            return viewModel.loadingStatus
         }
     }
 

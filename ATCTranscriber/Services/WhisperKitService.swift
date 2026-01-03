@@ -29,6 +29,7 @@ class WhisperKitService: ObservableObject {
     private var audioBuffer: [Float] = []
     private var isTranscribing = false
     private var transcriptionTask: Task<Void, Never>?
+    private var progressTask: Task<Void, Never>?
 
     @Published var isRecording = false
     @Published var isModelLoaded = false
@@ -40,10 +41,10 @@ class WhisperKitService: ObservableObject {
 
     // Audio settings optimized for speech
     private let sampleRate: Double = 16000
-    private let bufferDuration: TimeInterval = 4.0 // Process every 4 seconds for large model
+    private let bufferDuration: TimeInterval = 4.0
     private var lastProcessedSampleCount: Int = 0
 
-    // Model configuration - using the most advanced model
+    // Large V3 for Neural Engine - first load takes 5-10 min to compile ANE model
     private let modelName = "large-v3"
 
     init() {
@@ -53,31 +54,96 @@ class WhisperKitService: ObservableObject {
     }
 
     private func initializeWhisperKit() async {
-        do {
-            loadingProgress = "Downloading large-v3 model (~1.5GB)..."
-            downloadProgress = 0.1
+        // Start animated progress
+        startProgressAnimation()
 
-            // Initialize WhisperKit with the large-v3 model for maximum accuracy
-            whisperKit = try await WhisperKit(
-                model: modelName,
-                computeOptions: ModelComputeOptions(
-                    audioEncoderCompute: .cpuAndNeuralEngine,
-                    textDecoderCompute: .cpuAndNeuralEngine
-                ),
-                verbose: false,
-                logLevel: .none,
-                prewarm: true,
-                load: true,
-                download: true
-            )
+        // First load can take 5-10 minutes for ANE compilation
+        // Try loading, if fails clear cache and retry
+        for attempt in 1...2 {
+            do {
+                if attempt == 1 {
+                    loadingProgress = "Loading \(modelName) (first time: 5-10 min)..."
+                } else {
+                    loadingProgress = "Downloading \(modelName)..."
+                }
 
-            loadingProgress = "Model ready (large-v3)"
-            isModelLoaded = true
-            downloadProgress = 1.0
-        } catch {
-            loadingProgress = "Failed to load model"
-            self.error = .transcriptionError(error.localizedDescription)
+                // Use large-v3 with Neural Engine for maximum performance
+                whisperKit = try await WhisperKit(
+                    model: modelName,
+                    computeOptions: ModelComputeOptions(
+                        audioEncoderCompute: .cpuAndNeuralEngine,
+                        textDecoderCompute: .cpuAndNeuralEngine
+                    ),
+                    verbose: true,
+                    logLevel: .debug,
+                    prewarm: false,
+                    load: true,
+                    download: true
+                )
+
+                stopProgressAnimation()
+                loadingProgress = "Ready (\(modelName))"
+                isModelLoaded = true
+                downloadProgress = 1.0
+                return // Success
+
+            } catch {
+                if attempt == 1 {
+                    // First attempt failed - clear cache and retry
+                    loadingProgress = "Clearing cache..."
+                    await clearModelCache()
+                    continue
+                } else {
+                    // Second attempt also failed
+                    stopProgressAnimation()
+                    loadingProgress = "Error: \(error.localizedDescription)"
+                    self.error = .transcriptionError(error.localizedDescription)
+                }
+            }
         }
+    }
+
+    private func clearModelCache() async {
+        let fileManager = FileManager.default
+        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+
+        let huggingfaceDir = documentsURL.appendingPathComponent("huggingface")
+
+        do {
+            if fileManager.fileExists(atPath: huggingfaceDir.path) {
+                try fileManager.removeItem(at: huggingfaceDir)
+            }
+        } catch {
+            // Ignore cache clear errors
+        }
+    }
+
+    private func startProgressAnimation() {
+        progressTask = Task {
+            var progress = 0.0
+
+            while !Task.isCancelled && !isModelLoaded {
+                // Slowly increment progress
+                progress += 0.003
+
+                // Clamp to 0.95 (leave room for final loading)
+                if progress > 0.95 {
+                    progress = 0.95
+                }
+
+                // Update progress bar
+                await MainActor.run {
+                    self.downloadProgress = progress
+                }
+
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 second
+            }
+        }
+    }
+
+    private func stopProgressAnimation() {
+        progressTask?.cancel()
+        progressTask = nil
     }
 
     func startRecording() throws {
@@ -139,7 +205,6 @@ class WhisperKitService: ObservableObject {
     private func startContinuousTranscription() {
         transcriptionTask = Task { [weak self] in
             while self?.isRecording == true {
-                // Process every 3 seconds for responsive transcription
                 try? await Task.sleep(nanoseconds: UInt64(3 * 1_000_000_000))
 
                 guard let self = self, self.isRecording else { break }
@@ -155,11 +220,10 @@ class WhisperKitService: ObservableObject {
         let samplesNeeded = Int(sampleRate * bufferDuration)
         let newSamples = audioBuffer.count - lastProcessedSampleCount
 
-        guard newSamples >= samplesNeeded / 2 else { return } // At least 2 seconds of new audio
+        guard newSamples >= samplesNeeded / 2 else { return }
 
         isTranscribing = true
 
-        // Get recent audio (last 8 seconds for better context with large model)
         let contextSamples = min(audioBuffer.count, Int(sampleRate * 8))
         let audioToProcess = Array(audioBuffer.suffix(contextSamples))
 
@@ -168,33 +232,31 @@ class WhisperKitService: ObservableObject {
         do {
             guard let whisperKit = whisperKit else { return }
 
-            // Optimized decoding options for large-v3 model
             let results = try await whisperKit.transcribe(
                 audioArray: audioToProcess,
                 decodeOptions: DecodingOptions(
                     verbose: false,
                     task: .transcribe,
                     language: "en",
-                    temperature: 0.0,              // Greedy decoding for consistency
-                    temperatureFallbackCount: 5,   // More fallback attempts for accuracy
-                    sampleLength: 224,             // Full context length
+                    temperature: 0.0,
+                    temperatureFallbackCount: 5,
+                    sampleLength: 224,
                     usePrefillPrompt: true,
                     usePrefillCache: true,
                     skipSpecialTokens: true,
-                    withoutTimestamps: false,      // Enable timestamps for better segmentation
+                    withoutTimestamps: false,
                     clipTimestamps: [],
                     suppressBlank: true,
-                    supressTokens: [-1],           // Suppress end-of-text token hallucinations
+                    supressTokens: [-1],
                     compressionRatioThreshold: 2.4,
                     logProbThreshold: -1.0,
-                    noSpeechThreshold: 0.6         // Better silence detection
+                    noSpeechThreshold: 0.6
                 )
             )
 
             if let result = results.first, !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let transcribedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Check if this is meaningful text (not just noise)
                 if transcribedText.count > 2 && !isLikelyNoise(transcribedText) {
                     await MainActor.run {
                         self.onTranscriptionUpdate?(transcribedText, true)
@@ -202,12 +264,11 @@ class WhisperKitService: ObservableObject {
                 }
             }
         } catch {
-            // Silently handle transcription errors during continuous operation
+            // Silently handle transcription errors
         }
 
         isTranscribing = false
 
-        // Trim buffer to prevent memory issues (keep last 15 seconds for large model context)
         let maxSamples = Int(sampleRate * 15)
         if audioBuffer.count > maxSamples {
             audioBuffer = Array(audioBuffer.suffix(maxSamples))
@@ -215,22 +276,12 @@ class WhisperKitService: ObservableObject {
         }
     }
 
-    // Filter out likely noise/hallucinations
     private func isLikelyNoise(_ text: String) -> Bool {
         let lowercased = text.lowercased()
-
-        // Common Whisper hallucinations
         let hallucinations = [
-            "thank you",
-            "thanks for watching",
-            "subscribe",
-            "like and subscribe",
-            "see you next time",
-            "bye",
-            "music",
-            "[music]",
-            "(music)",
-            "♪"
+            "thank you", "thanks for watching", "subscribe",
+            "like and subscribe", "see you next time", "bye",
+            "music", "[music]", "(music)", "♪"
         ]
 
         for hallucination in hallucinations {
@@ -238,7 +289,6 @@ class WhisperKitService: ObservableObject {
                 return true
             }
         }
-
         return false
     }
 
@@ -251,7 +301,6 @@ class WhisperKitService: ObservableObject {
         isRecording = false
         isTranscribing = false
 
-        // Process any remaining audio
         Task {
             if !audioBuffer.isEmpty {
                 await processAccumulatedAudio()
