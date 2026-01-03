@@ -28,19 +28,55 @@ struct ContentView: View {
 
                 // Model loading overlay or transcription display
                 if viewModel.isModelLoading {
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text(viewModel.loadingStatus)
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        Text("Downloading Whisper AI model for accurate transcription...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
+                    VStack(spacing: 24) {
+                        // Large model icon
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 60))
+                            .foregroundColor(.blue)
+
+                        VStack(spacing: 8) {
+                            Text("Whisper Large-v3")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                            Text("Most Accurate Model")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Download progress
+                        VStack(spacing: 12) {
+                            if viewModel.isDownloading {
+                                ProgressView(value: viewModel.downloadProgress)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                                    .frame(width: 250)
+
+                                Text("\(Int(viewModel.downloadProgress * 100))%")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                ProgressView()
+                                    .scaleEffect(1.2)
+                            }
+
+                            Text(viewModel.loadingStatus)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Model info
+                        VStack(spacing: 4) {
+                            Text("~1.5GB download required")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Best-in-class accuracy for ATC audio")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
                 } else {
                     // Transcription display
                     ScrollViewReader { proxy in
@@ -73,10 +109,10 @@ struct ContentView: View {
                                         Image(systemName: "waveform")
                                             .font(.system(size: 48))
                                             .foregroundColor(.secondary)
-                                        Text("Powered by Whisper AI")
+                                        Text("Whisper Large-v3 Ready")
                                             .font(.headline)
                                             .foregroundColor(.secondary)
-                                        Text("Tap the microphone button to start transcribing ATC communications with high accuracy")
+                                        Text("Tap the microphone button to start transcribing ATC communications with maximum accuracy")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
                                             .multilineTextAlignment(.center)
@@ -194,7 +230,7 @@ struct ContentView: View {
         } else if viewModel.isRecording {
             return "Recording..."
         } else {
-            return "Ready"
+            return "Ready (large-v3)"
         }
     }
 

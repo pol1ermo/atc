@@ -33,14 +33,18 @@ class WhisperKitService: ObservableObject {
     @Published var isRecording = false
     @Published var isModelLoaded = false
     @Published var loadingProgress: String = "Initializing..."
+    @Published var downloadProgress: Double = 0.0
     @Published var error: WhisperKitError?
 
     var onTranscriptionUpdate: ((String, Bool) -> Void)?
 
     // Audio settings optimized for speech
     private let sampleRate: Double = 16000
-    private let bufferDuration: TimeInterval = 3.0 // Process every 3 seconds
+    private let bufferDuration: TimeInterval = 4.0 // Process every 4 seconds for large model
     private var lastProcessedSampleCount: Int = 0
+
+    // Model configuration - using the most advanced model
+    private let modelName = "large-v3"
 
     init() {
         Task {
@@ -50,12 +54,16 @@ class WhisperKitService: ObservableObject {
 
     private func initializeWhisperKit() async {
         do {
-            loadingProgress = "Downloading model..."
+            loadingProgress = "Downloading large-v3 model (~1.5GB)..."
+            downloadProgress = 0.1
 
-            // Use base.en model for best balance of speed and accuracy
-            // Options: tiny, tiny.en, base, base.en, small, small.en, medium, medium.en, large-v2, large-v3
+            // Initialize WhisperKit with the large-v3 model for maximum accuracy
             whisperKit = try await WhisperKit(
-                model: "base.en",
+                model: modelName,
+                computeOptions: ModelComputeOptions(
+                    audioEncoderCompute: .cpuAndNeuralEngine,
+                    textDecoderCompute: .cpuAndNeuralEngine
+                ),
                 verbose: false,
                 logLevel: .none,
                 prewarm: true,
@@ -63,8 +71,9 @@ class WhisperKitService: ObservableObject {
                 download: true
             )
 
-            loadingProgress = "Model ready"
+            loadingProgress = "Model ready (large-v3)"
             isModelLoaded = true
+            downloadProgress = 1.0
         } catch {
             loadingProgress = "Failed to load model"
             self.error = .transcriptionError(error.localizedDescription)
@@ -130,7 +139,8 @@ class WhisperKitService: ObservableObject {
     private func startContinuousTranscription() {
         transcriptionTask = Task { [weak self] in
             while self?.isRecording == true {
-                try? await Task.sleep(nanoseconds: UInt64(2 * 1_000_000_000)) // Every 2 seconds
+                // Process every 3 seconds for responsive transcription
+                try? await Task.sleep(nanoseconds: UInt64(3 * 1_000_000_000))
 
                 guard let self = self, self.isRecording else { break }
 
@@ -145,12 +155,12 @@ class WhisperKitService: ObservableObject {
         let samplesNeeded = Int(sampleRate * bufferDuration)
         let newSamples = audioBuffer.count - lastProcessedSampleCount
 
-        guard newSamples >= samplesNeeded / 2 else { return } // At least 1.5 seconds of new audio
+        guard newSamples >= samplesNeeded / 2 else { return } // At least 2 seconds of new audio
 
         isTranscribing = true
 
-        // Get recent audio (last 5 seconds for context)
-        let contextSamples = min(audioBuffer.count, Int(sampleRate * 5))
+        // Get recent audio (last 8 seconds for better context with large model)
+        let contextSamples = min(audioBuffer.count, Int(sampleRate * 8))
         let audioToProcess = Array(audioBuffer.suffix(contextSamples))
 
         lastProcessedSampleCount = audioBuffer.count
@@ -158,19 +168,26 @@ class WhisperKitService: ObservableObject {
         do {
             guard let whisperKit = whisperKit else { return }
 
+            // Optimized decoding options for large-v3 model
             let results = try await whisperKit.transcribe(
                 audioArray: audioToProcess,
                 decodeOptions: DecodingOptions(
                     verbose: false,
                     task: .transcribe,
                     language: "en",
-                    temperatureFallbackCount: 3,
-                    sampleLength: 224,
+                    temperature: 0.0,              // Greedy decoding for consistency
+                    temperatureFallbackCount: 5,   // More fallback attempts for accuracy
+                    sampleLength: 224,             // Full context length
                     usePrefillPrompt: true,
                     usePrefillCache: true,
                     skipSpecialTokens: true,
-                    withoutTimestamps: true,
-                    suppressBlank: true
+                    withoutTimestamps: false,      // Enable timestamps for better segmentation
+                    clipTimestamps: [],
+                    suppressBlank: true,
+                    supressTokens: [-1],           // Suppress end-of-text token hallucinations
+                    compressionRatioThreshold: 2.4,
+                    logProbThreshold: -1.0,
+                    noSpeechThreshold: 0.6         // Better silence detection
                 )
             )
 
@@ -178,7 +195,7 @@ class WhisperKitService: ObservableObject {
                 let transcribedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 // Check if this is meaningful text (not just noise)
-                if transcribedText.count > 2 {
+                if transcribedText.count > 2 && !isLikelyNoise(transcribedText) {
                     await MainActor.run {
                         self.onTranscriptionUpdate?(transcribedText, true)
                     }
@@ -190,12 +207,39 @@ class WhisperKitService: ObservableObject {
 
         isTranscribing = false
 
-        // Trim buffer to prevent memory issues (keep last 10 seconds)
-        let maxSamples = Int(sampleRate * 10)
+        // Trim buffer to prevent memory issues (keep last 15 seconds for large model context)
+        let maxSamples = Int(sampleRate * 15)
         if audioBuffer.count > maxSamples {
             audioBuffer = Array(audioBuffer.suffix(maxSamples))
             lastProcessedSampleCount = audioBuffer.count
         }
+    }
+
+    // Filter out likely noise/hallucinations
+    private func isLikelyNoise(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+
+        // Common Whisper hallucinations
+        let hallucinations = [
+            "thank you",
+            "thanks for watching",
+            "subscribe",
+            "like and subscribe",
+            "see you next time",
+            "bye",
+            "music",
+            "[music]",
+            "(music)",
+            "♪"
+        ]
+
+        for hallucination in hallucinations {
+            if lowercased.contains(hallucination) && text.count < 30 {
+                return true
+            }
+        }
+
+        return false
     }
 
     func stopRecording() {

@@ -11,6 +11,7 @@ class TranscriptionViewModel: ObservableObject {
     @Published var showingPermissionAlert = false
     @Published var isModelLoading = true
     @Published var loadingStatus: String = "Initializing..."
+    @Published var downloadProgress: Double = 0.0
 
     private let whisperService = WhisperKitService()
 
@@ -45,20 +46,26 @@ class TranscriptionViewModel: ObservableObject {
             }
         }
 
-        // Monitor model loading
+        // Monitor model loading and download progress
         Task {
             while !whisperService.isModelLoaded {
                 loadingStatus = whisperService.loadingProgress
+                downloadProgress = whisperService.downloadProgress
                 isModelLoading = true
-                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for smoother progress updates
             }
             isModelLoading = false
-            loadingStatus = "Ready"
+            loadingStatus = "Ready (large-v3)"
+            downloadProgress = 1.0
         }
     }
 
     var isModelReady: Bool {
         whisperService.isModelLoaded
+    }
+
+    var isDownloading: Bool {
+        downloadProgress > 0 && downloadProgress < 1.0
     }
 
     func checkPermissions() async {
