@@ -9,72 +9,97 @@ struct ContentView: View {
                 // Status indicator
                 HStack {
                     Circle()
-                        .fill(viewModel.isRecording ? Color.red : Color.gray)
+                        .fill(statusColor)
                         .frame(width: 12, height: 12)
-                    Text(viewModel.isRecording ? "Recording..." : "Ready")
+                    Text(statusText)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
+
+                    if viewModel.isModelLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
 
                 Divider()
 
-                // Transcription display
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(viewModel.transcriptions) { transcription in
-                                TranscriptionRow(transcription: transcription)
-                                    .id(transcription.id)
-                            }
+                // Model loading overlay or transcription display
+                if viewModel.isModelLoading {
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text(viewModel.loadingStatus)
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("Downloading Whisper AI model for accurate transcription...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Transcription display
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                ForEach(viewModel.transcriptions) { transcription in
+                                    TranscriptionRow(transcription: transcription)
+                                        .id(transcription.id)
+                                }
 
-                            // Current (partial) transcription
+                                // Current (partial) transcription
+                                if !viewModel.currentTranscription.isEmpty {
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Text("...")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 60, alignment: .leading)
+
+                                        Text(viewModel.currentTranscription)
+                                            .font(.body)
+                                            .foregroundColor(.primary.opacity(0.7))
+                                            .italic()
+                                    }
+                                    .padding(.horizontal)
+                                    .id("current")
+                                }
+
+                                if !viewModel.hasTranscriptions && !viewModel.isRecording {
+                                    VStack(spacing: 16) {
+                                        Image(systemName: "waveform")
+                                            .font(.system(size: 48))
+                                            .foregroundColor(.secondary)
+                                        Text("Powered by Whisper AI")
+                                            .font(.headline)
+                                            .foregroundColor(.secondary)
+                                        Text("Tap the microphone button to start transcribing ATC communications with high accuracy")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 40)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 80)
+                                }
+                            }
+                            .padding(.vertical)
+                        }
+                        .onChange(of: viewModel.transcriptions.count) { _, _ in
+                            if let lastId = viewModel.transcriptions.last?.id {
+                                withAnimation {
+                                    proxy.scrollTo(lastId, anchor: .bottom)
+                                }
+                            }
+                        }
+                        .onChange(of: viewModel.currentTranscription) { _, _ in
                             if !viewModel.currentTranscription.isEmpty {
-                                HStack(alignment: .top, spacing: 8) {
-                                    Text("...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 60, alignment: .leading)
-
-                                    Text(viewModel.currentTranscription)
-                                        .font(.body)
-                                        .foregroundColor(.primary.opacity(0.7))
-                                        .italic()
+                                withAnimation {
+                                    proxy.scrollTo("current", anchor: .bottom)
                                 }
-                                .padding(.horizontal)
-                                .id("current")
-                            }
-
-                            if !viewModel.hasTranscriptions && !viewModel.isRecording {
-                                VStack(spacing: 16) {
-                                    Image(systemName: "waveform")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(.secondary)
-                                    Text("Tap the microphone button to start transcribing ATC communications")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 80)
-                            }
-                        }
-                        .padding(.vertical)
-                    }
-                    .onChange(of: viewModel.transcriptions.count) { _, _ in
-                        if let lastId = viewModel.transcriptions.last?.id {
-                            withAnimation {
-                                proxy.scrollTo(lastId, anchor: .bottom)
-                            }
-                        }
-                    }
-                    .onChange(of: viewModel.currentTranscription) { _, _ in
-                        if !viewModel.currentTranscription.isEmpty {
-                            withAnimation {
-                                proxy.scrollTo("current", anchor: .bottom)
                             }
                         }
                     }
@@ -90,7 +115,7 @@ struct ContentView: View {
                             .font(.title2)
                             .frame(width: 50, height: 50)
                     }
-                    .disabled(!viewModel.hasTranscriptions)
+                    .disabled(!viewModel.hasTranscriptions || viewModel.isModelLoading)
 
                     Spacer()
 
@@ -98,7 +123,7 @@ struct ContentView: View {
                     Button(action: viewModel.toggleRecording) {
                         ZStack {
                             Circle()
-                                .fill(viewModel.isRecording ? Color.red : Color.blue)
+                                .fill(recordButtonColor)
                                 .frame(width: 72, height: 72)
 
                             if viewModel.isRecording {
@@ -112,6 +137,7 @@ struct ContentView: View {
                             }
                         }
                     }
+                    .disabled(viewModel.isModelLoading)
 
                     Spacer()
 
@@ -121,7 +147,7 @@ struct ContentView: View {
                             .font(.title2)
                             .frame(width: 50, height: 50)
                     }
-                    .disabled(!viewModel.hasTranscriptions)
+                    .disabled(!viewModel.hasTranscriptions || viewModel.isModelLoading)
                 }
                 .padding()
             }
@@ -138,7 +164,7 @@ struct ContentView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Please enable microphone and speech recognition access in Settings to use this app.")
+                Text("Please enable microphone access in Settings to use this app.")
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
@@ -149,6 +175,36 @@ struct ContentView: View {
                     Text(error)
                 }
             }
+        }
+    }
+
+    private var statusColor: Color {
+        if viewModel.isModelLoading {
+            return .orange
+        } else if viewModel.isRecording {
+            return .red
+        } else {
+            return .green
+        }
+    }
+
+    private var statusText: String {
+        if viewModel.isModelLoading {
+            return viewModel.loadingStatus
+        } else if viewModel.isRecording {
+            return "Recording..."
+        } else {
+            return "Ready"
+        }
+    }
+
+    private var recordButtonColor: Color {
+        if viewModel.isModelLoading {
+            return .gray
+        } else if viewModel.isRecording {
+            return .red
+        } else {
+            return .blue
         }
     }
 }

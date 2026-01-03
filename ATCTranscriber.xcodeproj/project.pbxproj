@@ -13,6 +13,8 @@
 		A1000004 /* Transcription.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* Transcription.swift */; };
 		A1000005 /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* SpeechRecognitionService.swift */; };
 		A1000006 /* TranscriptionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* TranscriptionViewModel.swift */; };
+		A1000007 /* WhisperKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* WhisperKitService.swift */; };
+		A1000008 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = AB000001 /* WhisperKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +25,7 @@
 		A2000005 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
 		A2000006 /* TranscriptionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionViewModel.swift; sourceTree = "<group>"; };
 		A2000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000008 /* WhisperKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitService.swift; sourceTree = "<group>"; };
 		A3000001 /* ATCTranscriber.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ATCTranscriber.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -31,6 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000008 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				A2000005 /* SpeechRecognitionService.swift */,
+				A2000008 /* WhisperKitService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -107,6 +112,9 @@
 			dependencies = (
 			);
 			name = ATCTranscriber;
+			packageProductDependencies = (
+				AB000001 /* WhisperKit */,
+			);
 			productName = ATCTranscriber;
 			productReference = A3000001 /* ATCTranscriber.app */;
 			productType = "com.apple.product-type.application";
@@ -135,6 +143,9 @@
 				Base,
 			);
 			mainGroup = A5000001;
+			packageReferences = (
+				AA000001 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
 			productRefGroup = A5000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -165,6 +176,7 @@
 				A1000004 /* Transcription.swift in Sources */,
 				A1000005 /* SpeechRecognitionService.swift in Sources */,
 				A1000006 /* TranscriptionViewModel.swift in Sources */,
+				A1000007 /* WhisperKitService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -297,7 +309,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WDGA9PKXR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ATCTranscriber/Info.plist;
@@ -328,7 +340,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WDGA9PKXR5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ATCTranscriber/Info.plist;
@@ -374,6 +386,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000001 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AB000001 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A8000001 /* Project object */;
 }

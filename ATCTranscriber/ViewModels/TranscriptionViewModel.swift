@@ -9,22 +9,34 @@ class TranscriptionViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isAuthorized = false
     @Published var showingPermissionAlert = false
+    @Published var isModelLoading = true
+    @Published var loadingStatus: String = "Initializing..."
 
-    private let speechService = SpeechRecognitionService()
+    private let whisperService = WhisperKitService()
 
     init() {
-        setupSpeechService()
+        setupWhisperService()
     }
 
-    private func setupSpeechService() {
-        speechService.onTranscriptionUpdate = { [weak self] text, isFinal in
+    private func setupWhisperService() {
+        whisperService.onTranscriptionUpdate = { [weak self] text, isFinal in
             Task { @MainActor in
                 guard let self = self else { return }
 
                 if isFinal {
                     if !text.isEmpty {
-                        let transcription = Transcription(text: text, isFinal: true)
-                        self.transcriptions.append(transcription)
+                        // Avoid duplicate transcriptions
+                        let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let lastTranscription = self.transcriptions.last {
+                            // Don't add if it's the same as the last one
+                            if lastTranscription.text != cleanText {
+                                let transcription = Transcription(text: cleanText, isFinal: true)
+                                self.transcriptions.append(transcription)
+                            }
+                        } else {
+                            let transcription = Transcription(text: cleanText, isFinal: true)
+                            self.transcriptions.append(transcription)
+                        }
                     }
                     self.currentTranscription = ""
                 } else {
@@ -32,13 +44,27 @@ class TranscriptionViewModel: ObservableObject {
                 }
             }
         }
+
+        // Monitor model loading
+        Task {
+            while !whisperService.isModelLoaded {
+                loadingStatus = whisperService.loadingProgress
+                isModelLoading = true
+                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+            }
+            isModelLoading = false
+            loadingStatus = "Ready"
+        }
+    }
+
+    var isModelReady: Bool {
+        whisperService.isModelLoaded
     }
 
     func checkPermissions() async {
-        let speechAuthorized = await speechService.requestAuthorization()
-        let microphoneAuthorized = await speechService.requestMicrophoneAccess()
+        let microphoneAuthorized = await whisperService.requestMicrophoneAccess()
 
-        isAuthorized = speechAuthorized && microphoneAuthorized
+        isAuthorized = microphoneAuthorized
 
         if !isAuthorized {
             showingPermissionAlert = true
@@ -59,8 +85,13 @@ class TranscriptionViewModel: ObservableObject {
             return
         }
 
+        guard whisperService.isModelLoaded else {
+            errorMessage = "Please wait for model to finish loading"
+            return
+        }
+
         do {
-            try speechService.startRecording()
+            try whisperService.startRecording()
             isRecording = true
             errorMessage = nil
         } catch {
@@ -69,7 +100,7 @@ class TranscriptionViewModel: ObservableObject {
     }
 
     private func stopRecording() {
-        speechService.stopRecording()
+        whisperService.stopRecording()
         isRecording = false
 
         // Save any pending transcription
