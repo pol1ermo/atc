@@ -44,8 +44,9 @@ class WhisperKitService: ObservableObject {
     private let bufferDuration: TimeInterval = 4.0
     private var lastProcessedSampleCount: Int = 0
 
-    // Large V3 Turbo for Neural Engine - optimized for speed and quality
-    private let modelName = "large-v3-turbo"
+    // Large-v3 with Neural Engine - best quality for ATC communications
+    // Note: Custom ATC fine-tuned models require full CoreML conversion which has compatibility issues
+    private let modelName = "large-v3"
 
     init() {
         Task {
